@@ -40,6 +40,8 @@ If thresholds are exceeded, intents are marked `reviewRequired=true` with explic
 - `A2`: bounded delegated operation mode (default allowed).
 - `A3`: unrestricted/high-autonomy mode (blocked by default for Treasury/Payment profile).
 
+`TreasuryPaymentAgent` currently permits only `A1` and `A2` unless reconfigured; `A0` and `A3` are rejected by default policy.
+
 ## Safety model
 
 - prompt-level blocking for gateway bypass / policy mutation attempts

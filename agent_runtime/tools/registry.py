@@ -30,10 +30,10 @@ class ToolRegistry:
 
     def execute(self, profile: str, tool_name: str, args: dict[str, Any]) -> str:
         if tool_name not in self._tools:
-            raise ToolValidationError(f"Unknown tool: {tool_name}")
+            raise ToolValidationError("TOOL_NOT_AVAILABLE")
         allowed = self._profile_allowlist.get(profile, set())
         if tool_name not in allowed:
-            raise ToolValidationError(f"Tool not allowed for profile: {tool_name}")
+            raise ToolValidationError("TOOL_NOT_AVAILABLE")
 
         spec = self._tools[tool_name]
         spec.validator(args)

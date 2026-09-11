@@ -31,6 +31,8 @@ class TreasuryPaymentAgent:
     allowed_autonomy: set[AutonomyLevel] = field(default_factory=lambda: {AutonomyLevel.A1, AutonomyLevel.A2})
 
     def validate_context(self, context: RuntimeContext) -> None:
+        if context.actor_id != self.actor_id:
+            raise AgentPolicyError("ACTOR_MISMATCH")
         if not context.mandate_id:
             raise AgentPolicyError("MANDATE_REQUIRED")
         if not context.capability_ids:
@@ -53,29 +55,47 @@ class TreasuryPaymentAgent:
     ) -> FinancialIntent:
         self.validate_context(context)
 
-        action_enum = IntentAction(action)
+        try:
+            action_enum = IntentAction(action)
+        except ValueError as exc:
+            raise AgentPolicyError("UNSUPPORTED_ACTION") from exc
         if action_enum not in self.allowed_actions:
             raise AgentPolicyError("UNSUPPORTED_ACTION")
 
         review_required = False
-        review_reason = None
+        review_reasons: list[str] = []
+        normalized_amount: float | None = amount
 
         if amount is not None:
-            if amount > self.limits.per_tx:
+            try:
+                normalized_amount = float(amount)
+            except (TypeError, ValueError) as exc:
+                raise AgentPolicyError("INVALID_AMOUNT") from exc
+            if normalized_amount <= 0:
+                raise AgentPolicyError("INVALID_AMOUNT")
+
+        if normalized_amount is not None:
+            if normalized_amount > self.limits.per_tx:
                 review_required = True
-                review_reason = "PER_TX_LIMIT_EXCEEDED"
-            if spent_in_window + amount > self.limits.per_window:
+                review_reasons.append("PER_TX_LIMIT_EXCEEDED")
+            if spent_in_window + normalized_amount > self.limits.per_window:
                 review_required = True
-                review_reason = "WINDOW_LIMIT_EXCEEDED"
-            if recipient and recipient in self.limits.per_counterparty and amount > self.limits.per_counterparty[recipient]:
+                review_reasons.append("WINDOW_LIMIT_EXCEEDED")
+            if (
+                recipient
+                and recipient in self.limits.per_counterparty
+                and normalized_amount > self.limits.per_counterparty[recipient]
+            ):
                 review_required = True
-                review_reason = "COUNTERPARTY_LIMIT_EXCEEDED"
+                review_reasons.append("COUNTERPARTY_LIMIT_EXCEEDED")
+
+        review_reason = ",".join(review_reasons) if review_reasons else None
 
         return FinancialIntent.create(
             actor_id=context.actor_id,
             action=action_enum,
             asset_id=asset_id,
-            amount=amount,
+            amount=normalized_amount,
             chain_id=chain_id,
             recipient=recipient,
             venue=venue,

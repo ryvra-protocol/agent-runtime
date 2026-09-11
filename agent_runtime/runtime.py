@@ -46,27 +46,29 @@ class AgentRuntime:
     def run(self, *, context: RuntimeContext, task_text: str) -> RuntimeResult:
         blocked_unsafe_attempts = 0
         terminal_reason: str | None = None
+        final_status = AgentStatus.ACTIVE.value
 
         prompt_result = self.prompt_defense.check(task_text)
         if not prompt_result.allowed:
             blocked_unsafe_attempts += 1
             terminal_reason = prompt_result.reason
-            self._save_terminal_session(context, terminal_reason)
-            return RuntimeResult(plan=[], run_trace=[], evaluation=self.evaluator.evaluate([], blocked_unsafe_attempts).to_dict(), terminal_reason=terminal_reason)
+            return self._terminal_exit(
+                context=context,
+                reason=terminal_reason or "PROMPT_BLOCKED",
+                blocked_unsafe_attempts=blocked_unsafe_attempts,
+                task_text=task_text,
+            )
 
         try:
             self._ensure_active(context)
         except PermissionError as exc:
             terminal_reason = str(exc)
-            return RuntimeResult(
-                plan=[],
-                run_trace=[],
-                evaluation=self.evaluator.evaluate([], blocked_unsafe_attempts).to_dict(),
-                terminal_reason=terminal_reason,
+            return self._terminal_exit(
+                context=context,
+                reason=terminal_reason,
+                blocked_unsafe_attempts=blocked_unsafe_attempts,
+                task_text=task_text,
             )
-        plan_steps = self.planner.create_plan(task_text)
-        plan_serialized = [step.__dict__ for step in plan_steps]
-
         self.store.upsert_session(
             session_id=context.session_id,
             actor_id=context.actor_id,
@@ -74,6 +76,17 @@ class AgentRuntime:
             model_name="stub-model",
             status=AgentStatus.ACTIVE.value,
         )
+        try:
+            self.executor.profile.validate_context(context)
+        except AgentPolicyError as exc:
+            return self._terminal_exit(
+                context=context,
+                reason=str(exc),
+                blocked_unsafe_attempts=blocked_unsafe_attempts,
+                task_text=task_text,
+            )
+        plan_steps = self.planner.create_plan(task_text)
+        plan_serialized = [step.__dict__ for step in plan_steps]
         self.store.save_task(context.task_id, context.session_id, task_text, plan_serialized)
 
         run_trace: list[dict[str, Any]] = []
@@ -106,9 +119,37 @@ class AgentRuntime:
                         action_type="tool",
                         payload=result,
                     )
-            except (ToolValidationError, DirectExecutionBlockedError, AgentPolicyError, PermissionError, ValueError) as exc:
+            except PermissionError as exc:
+                terminal_reason = str(exc)
+                final_status = "HALTED"
+                run_trace.append({"type": "blocked", "stepId": step.id, "reason": terminal_reason})
+                self.store.save_action(
+                    session_id=context.session_id,
+                    task_id=context.task_id,
+                    step_id=step.id,
+                    action_type="blocked",
+                    payload={"reason": terminal_reason},
+                    reason_code=terminal_reason,
+                )
+                break
+            except AgentPolicyError as exc:
+                terminal_reason = str(exc)
+                final_status = "HALTED"
+                run_trace.append({"type": "blocked", "stepId": step.id, "reason": terminal_reason})
+                self.store.save_action(
+                    session_id=context.session_id,
+                    task_id=context.task_id,
+                    step_id=step.id,
+                    action_type="blocked",
+                    payload={"reason": terminal_reason},
+                    reason_code=terminal_reason,
+                )
+                break
+            except (ToolValidationError, DirectExecutionBlockedError) as exc:
                 blocked_unsafe_attempts += 1
                 reason = str(exc)
+                terminal_reason = reason
+                final_status = "HALTED"
                 run_trace.append({"type": "blocked", "stepId": step.id, "reason": reason})
                 self.store.save_action(
                     session_id=context.session_id,
@@ -118,6 +159,24 @@ class AgentRuntime:
                     payload={"reason": reason},
                     reason_code=reason,
                 )
+                break
+            except ValueError as exc:
+                reason = str(exc)
+                terminal_reason = reason
+                final_status = "HALTED"
+                run_trace.append({"type": "validation_error", "stepId": step.id, "reason": reason})
+                self.store.save_action(
+                    session_id=context.session_id,
+                    task_id=context.task_id,
+                    step_id=step.id,
+                    action_type="validation_error",
+                    payload={"reason": reason},
+                    reason_code=reason,
+                )
+                break
+
+        if final_status == AgentStatus.ACTIVE.value and terminal_reason is None:
+            final_status = "COMPLETED"
 
         evaluation = self.evaluator.evaluate(run_trace, blocked_unsafe_attempts).to_dict()
         self.store.save_run_record(
@@ -133,7 +192,7 @@ class AgentRuntime:
             actor_id=context.actor_id,
             model_provider="stub",
             model_name="stub-model",
-            status=AgentStatus.ACTIVE.value,
+            status=final_status,
             terminal_reason=terminal_reason,
             audit_metadata={"blockedUnsafeAttempts": blocked_unsafe_attempts},
         )
@@ -143,10 +202,18 @@ class AgentRuntime:
         status = self.gateway_client.get_agent_status(context.actor_id)
         if status in {AgentStatus.SUSPENDED, AgentStatus.REVOKED}:
             reason = f"AGENT_{status.value}"
-            self._save_terminal_session(context, reason)
             raise PermissionError(reason)
 
-    def _save_terminal_session(self, context: RuntimeContext, reason: str) -> None:
+    def _terminal_exit(
+        self,
+        *,
+        context: RuntimeContext,
+        reason: str,
+        blocked_unsafe_attempts: int,
+        task_text: str,
+    ) -> RuntimeResult:
+        evaluation = self.evaluator.evaluate([], blocked_unsafe_attempts).to_dict()
+        self.memory.add_event({"type": "terminal", "reason": reason})
         self.store.upsert_session(
             session_id=context.session_id,
             actor_id=context.actor_id,
@@ -154,5 +221,14 @@ class AgentRuntime:
             model_name="stub-model",
             status="HALTED",
             terminal_reason=reason,
-            audit_metadata={"reason": reason},
+            audit_metadata={"reason": reason, "blockedUnsafeAttempts": blocked_unsafe_attempts},
         )
+        self.store.save_task(context.task_id, context.session_id, task_text, [])
+        self.store.save_run_record(
+            session_id=context.session_id,
+            task_id=context.task_id,
+            run_trace=[],
+            evaluation=evaluation,
+            blocked_unsafe_attempts=blocked_unsafe_attempts,
+        )
+        return RuntimeResult(plan=[], run_trace=[], evaluation=evaluation, terminal_reason=reason)

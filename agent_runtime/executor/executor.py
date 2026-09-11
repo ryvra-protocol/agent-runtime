@@ -38,10 +38,13 @@ class RuntimeExecutor:
             action = step.action
             if not action:
                 raise ValueError("Financial step missing action")
+            asset_id = step.params.get("assetId")
+            if not asset_id:
+                raise ValueError("ASSET_ID_REQUIRED")
             intent = self.profile.create_intent(
                 context=context,
                 action=action,
-                asset_id=str(step.params.get("assetId", "UNKNOWN")),
+                asset_id=str(asset_id),
                 amount=step.params.get("amount"),
                 chain_id=step.params.get("chainId"),
                 recipient=step.params.get("recipient"),

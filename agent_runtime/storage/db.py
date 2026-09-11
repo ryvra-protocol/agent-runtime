@@ -12,6 +12,7 @@ class RuntimeStore:
         if path != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(path)
+        self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.row_factory = sqlite3.Row
         self._init_schema()
 
@@ -80,6 +81,9 @@ class RuntimeStore:
             INSERT INTO agent_sessions (session_id, actor_id, model_provider, model_name, status, terminal_reason, audit_metadata)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(session_id) DO UPDATE SET
+                actor_id=excluded.actor_id,
+                model_provider=excluded.model_provider,
+                model_name=excluded.model_name,
                 status=excluded.status,
                 terminal_reason=excluded.terminal_reason,
                 audit_metadata=excluded.audit_metadata

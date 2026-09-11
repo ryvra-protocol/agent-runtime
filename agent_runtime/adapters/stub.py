@@ -25,13 +25,20 @@ class StubModelAdapter(ModelAdapter):
                     if "transfer" in lowered
                     else "PAY"
                 )
+                recipient = None
+                if action in {"PAY", "TRANSFER", "COLLECT"} and " to " in lowered:
+                    recipient = raw.lower().split(" to ", 1)[1].split()[0]
+                elif action in {"PAY", "TRANSFER", "COLLECT"}:
+                    parts = raw.split()
+                    if len(parts) >= 2 and parts[0].lower() in {"pay", "transfer", "collect"}:
+                        recipient = parts[1]
                 steps.append(
                     PlanStep(
                         id=step_id,
                         description=raw,
                         kind="financial",
                         action=action,
-                        params={"purpose": raw},
+                        params={"purpose": raw, "assetId": "USD", "recipient": recipient},
                     )
                 )
             else:
