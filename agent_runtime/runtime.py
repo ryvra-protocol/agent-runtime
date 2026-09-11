@@ -418,10 +418,17 @@ class AgentRuntime:
                 return {"halt": True, "status": "HALTED", "terminal_reason": "REPEATED_GATEWAY_DENIALS", "escalation_state": EscalationState.HALTED.value}
             return {"halt": False, "status": AgentStatus.ACTIVE.value, "terminal_reason": None, "escalation_state": EscalationState.NONE.value}
         if state in {IntentState.REVIEW.value, IntentState.CHALLENGE.value, IntentState.DELAY.value, IntentState.QUARANTINE.value}:
-            escalation_state = EscalationState(state).value
+            escalation_map = {
+                IntentState.REVIEW.value: EscalationState.REVIEW.value,
+                IntentState.CHALLENGE.value: EscalationState.CHALLENGE.value,
+                IntentState.DELAY.value: EscalationState.DELAY.value,
+                IntentState.QUARANTINE.value: EscalationState.QUARANTINE.value,
+            }
+            escalation_state = escalation_map[state]
             if state == IntentState.QUARANTINE.value:
                 safety_flags.append("QUARANTINE_ESCALATION")
-            self.pause_session(context.session_id, approval_payload)
+            else:
+                self.pause_session(context.session_id, approval_payload)
             self.store.save_action(
                 session_id=context.session_id,
                 task_id=context.task_id,

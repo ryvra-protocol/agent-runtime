@@ -213,6 +213,8 @@ def test_market_and_procurement_controls_require_review() -> None:
     )
     market_result = market.executor.execute_step(_context(ProfileType.MARKET), market_step)
     assert market_result["submitResponse"]["state"] == IntentState.REVIEW.value
+    assert "VENUE_NOT_ALLOWLISTED" in market_result["intent"]["reviewReason"]
+    assert "INSTRUMENT_NOT_ALLOWLISTED" in market_result["intent"]["reviewReason"]
 
     procurement = _runtime(ProfileType.PROCUREMENT)
     procurement_step = PlanStep(
@@ -224,6 +226,8 @@ def test_market_and_procurement_controls_require_review() -> None:
     )
     procurement_result = procurement.executor.execute_step(_context(ProfileType.PROCUREMENT), procurement_step)
     assert procurement_result["submitResponse"]["state"] == IntentState.REVIEW.value
+    assert "VENDOR_NOT_ALLOWLISTED" in procurement_result["intent"]["reviewReason"]
+    assert "INVOICE_REFERENCE_REQUIRED" in procurement_result["intent"]["reviewReason"]
 
 
 def test_runaway_protection_halts_on_max_actions() -> None:
