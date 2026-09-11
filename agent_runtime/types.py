@@ -12,6 +12,9 @@ class IntentAction(str, Enum):
     TRANSFER = "TRANSFER"
     COLLECT = "COLLECT"
     REBALANCE = "REBALANCE"
+    TRADE = "TRADE"
+    OPEN_POSITION = "OPEN_POSITION"
+    CLOSE_POSITION = "CLOSE_POSITION"
 
 
 class AutonomyLevel(str, Enum):
@@ -29,11 +32,31 @@ class AgentStatus(str, Enum):
 
 class IntentState(str, Enum):
     SUBMITTED = "SUBMITTED"
-    REVIEW_REQUIRED = "REVIEW_REQUIRED"
+    APPROVED = "APPROVED"
+    REVIEW = "REVIEW"
     DENIED = "DENIED"
     CHALLENGE = "CHALLENGE"
-    DELAYED = "DELAYED"
-    QUARANTINED = "QUARANTINED"
+    DELAY = "DELAY"
+    QUARANTINE = "QUARANTINE"
+    KILLSWITCH = "KILLSWITCH"
+
+
+class ProfileType(str, Enum):
+    TREASURY = "TREASURY_AGENT"
+    PORTFOLIO = "PORTFOLIO_AGENT"
+    PROCUREMENT = "PROCUREMENT_AGENT"
+    MARKET = "MARKET_AGENT"
+    SETTLEMENT = "SETTLEMENT_AGENT"
+
+
+class EscalationState(str, Enum):
+    NONE = "NONE"
+    REVIEW = "REVIEW"
+    CHALLENGE = "CHALLENGE"
+    DELAY = "DELAY"
+    QUARANTINE = "QUARANTINE"
+    PAUSED = "PAUSED"
+    HALTED = "HALTED"
 
 
 @dataclass(frozen=True)
@@ -53,6 +76,7 @@ class FinancialIntent:
     chainId: str | None = None
     recipient: str | None = None
     venue: str | None = None
+    instrumentId: str | None = None
     reviewRequired: bool = False
     reviewReason: str | None = None
 
@@ -71,6 +95,7 @@ class FinancialIntent:
         chain_id: str | None = None,
         recipient: str | None = None,
         venue: str | None = None,
+        instrument_id: str | None = None,
         ttl_minutes: int = 30,
         review_required: bool = False,
         review_reason: str | None = None,
@@ -86,6 +111,7 @@ class FinancialIntent:
             chainId=chain_id,
             recipient=recipient,
             venue=venue,
+            instrumentId=instrument_id,
             purpose=purpose,
             mandateId=mandate_id,
             policyVersion=policy_version,
@@ -107,6 +133,7 @@ class FinancialIntent:
             "chainId": self.chainId,
             "recipient": self.recipient,
             "venue": self.venue,
+            "instrumentId": self.instrumentId,
             "purpose": self.purpose,
             "mandateId": self.mandateId,
             "policyVersion": self.policyVersion,
@@ -136,5 +163,6 @@ class RuntimeContext:
     mandate_id: str
     capability_ids: list[str]
     policy_version: str
+    profile_type: ProfileType = ProfileType.TREASURY
     autonomy_level: AutonomyLevel = AutonomyLevel.A1
     correlation_id: str = field(default_factory=lambda: str(uuid4()))

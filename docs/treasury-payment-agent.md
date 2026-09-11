@@ -1,8 +1,10 @@
 # TreasuryPaymentAgent
 
+Legacy compatibility shim documentation for the older treasury profile names. New integrations should prefer `TreasuryAgentProfile` and `TreasuryAgentControls`.
+
 ## Profile
 
-`TreasuryPaymentAgent` is a bounded production profile for treasury/payment workloads.
+`TreasuryPaymentAgent` is a compatibility wrapper around `TreasuryAgentProfile` that still accepts the legacy `limits=` constructor argument, and `TreasuryPaymentLimits` remains a compatibility type built on `TreasuryAgentControls`.
 
 ### Allowed actions
 
@@ -33,6 +35,7 @@ If any cap is exceeded, the runtime still emits canonical `FinancialIntent` but 
 - `PER_TX_LIMIT_EXCEEDED`
 - `WINDOW_LIMIT_EXCEEDED`
 - `COUNTERPARTY_LIMIT_EXCEEDED`
+- `CASH_FLOOR_BREACH`
 
 ### Autonomy bounds
 

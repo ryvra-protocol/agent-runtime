@@ -39,3 +39,6 @@ class ToolRegistry:
         spec.validator(args)
         output = spec.handler(args)
         return sanitize_tool_output(output)
+
+    def allowed_tools(self, profile: str) -> set[str]:
+        return set(self._profile_allowlist.get(profile, set()))
