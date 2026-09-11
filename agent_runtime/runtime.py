@@ -155,7 +155,7 @@ class AgentRuntime:
                         payload=result["intent"],
                         profile_type=context.profile_type.value,
                         autonomy_level=context.autonomy_level.value,
-                        safety_flags=safety_flags,
+                        safety_flags=list(safety_flags),
                         escalation_state=EscalationState.NONE.value,
                         gateway_ref=result["submitResponse"].get("gatewayRef"),
                         gateway_refs={
@@ -191,7 +191,7 @@ class AgentRuntime:
                         payload=result,
                         profile_type=context.profile_type.value,
                         autonomy_level=context.autonomy_level.value,
-                        safety_flags=safety_flags,
+                        safety_flags=list(safety_flags),
                         escalation_state=EscalationState.NONE.value,
                         run_metrics=run_metrics,
                     )
@@ -208,7 +208,7 @@ class AgentRuntime:
                     payload={"reason": terminal_reason},
                     profile_type=context.profile_type.value,
                     autonomy_level=context.autonomy_level.value,
-                    safety_flags=safety_flags,
+                    safety_flags=list(safety_flags),
                     escalation_state=escalation_state,
                     reason_code=terminal_reason,
                     run_metrics=run_metrics,
@@ -227,7 +227,7 @@ class AgentRuntime:
                     payload={"reason": terminal_reason},
                     profile_type=context.profile_type.value,
                     autonomy_level=context.autonomy_level.value,
-                    safety_flags=safety_flags,
+                    safety_flags=list(safety_flags),
                     escalation_state=escalation_state,
                     reason_code=terminal_reason,
                     run_metrics=run_metrics,
@@ -249,7 +249,7 @@ class AgentRuntime:
                     payload={"reason": reason},
                     profile_type=context.profile_type.value,
                     autonomy_level=context.autonomy_level.value,
-                    safety_flags=safety_flags,
+                    safety_flags=list(safety_flags),
                     escalation_state=escalation_state,
                     reason_code=reason,
                     run_metrics=run_metrics,
@@ -269,7 +269,7 @@ class AgentRuntime:
                     payload={"reason": reason},
                     profile_type=context.profile_type.value,
                     autonomy_level=context.autonomy_level.value,
-                    safety_flags=safety_flags,
+                    safety_flags=list(safety_flags),
                     escalation_state=escalation_state,
                     reason_code=reason,
                     run_metrics=run_metrics,
@@ -298,7 +298,7 @@ class AgentRuntime:
             model_name="stub-model",
             status=final_status,
             terminal_reason=terminal_reason,
-            safety_flags=safety_flags,
+            safety_flags=list(safety_flags),
             escalation_state=escalation_state,
             run_metrics=run_metrics,
             audit_metadata={"blockedUnsafeAttempts": blocked_unsafe_attempts, "objectiveHash": objective_hash},
@@ -335,7 +335,7 @@ class AgentRuntime:
             model_name="stub-model",
             status="HALTED",
             terminal_reason=reason,
-            safety_flags=safety_flags,
+            safety_flags=list(safety_flags),
             escalation_state=escalation_state,
             run_metrics=run_metrics,
             audit_metadata={"reason": reason, "blockedUnsafeAttempts": blocked_unsafe_attempts, "objectiveHash": objective_hash},
@@ -414,9 +414,12 @@ class AgentRuntime:
             run_metrics["denials"] += 1
             intent_retries[intent_id] = intent_retries.get(intent_id, 0) + 1
             run_metrics["retries"] = sum(intent_retries.values())
-            if run_metrics["denials"] >= profile.config.runaway_limits.max_denials:
-                return {"halt": True, "status": "HALTED", "terminal_reason": "REPEATED_GATEWAY_DENIALS", "escalation_state": EscalationState.HALTED.value}
-            return {"halt": False, "status": AgentStatus.ACTIVE.value, "terminal_reason": None, "escalation_state": EscalationState.NONE.value}
+            terminal_reason = (
+                "REPEATED_GATEWAY_DENIALS"
+                if run_metrics["denials"] >= profile.config.runaway_limits.max_denials
+                else "GATEWAY_DENIED"
+            )
+            return {"halt": True, "status": "HALTED", "terminal_reason": terminal_reason, "escalation_state": EscalationState.HALTED.value}
         if state in {IntentState.REVIEW.value, IntentState.CHALLENGE.value, IntentState.DELAY.value, IntentState.QUARANTINE.value}:
             escalation_map = {
                 IntentState.REVIEW.value: EscalationState.REVIEW.value,
@@ -437,7 +440,7 @@ class AgentRuntime:
                 payload={"approvalPayload": approval_payload, "response": response},
                 profile_type=context.profile_type.value,
                 autonomy_level=context.autonomy_level.value,
-                safety_flags=safety_flags,
+                safety_flags=list(safety_flags),
                 escalation_state=escalation_state,
                 gateway_ref=gateway_ref,
                 gateway_refs=approval_payload,

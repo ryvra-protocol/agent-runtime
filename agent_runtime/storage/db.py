@@ -220,8 +220,9 @@ class RuntimeStore:
     def get_actions_by_correlation_id(self, correlation_id: str) -> list[sqlite3.Row]:
         query = """
             SELECT * FROM agent_actions
-            WHERE json_extract(action_payload, '$.intent.correlationId') = ?
-               OR json_extract(action_payload, '$.correlationId') = ?
+            WHERE json_extract(action_payload, '$.correlationId') = ?
+               OR json_extract(action_payload, '$.intent.correlationId') = ?
+               OR json_extract(action_payload, '$.approvalPayload.correlationId') = ?
             ORDER BY action_id ASC
         """
-        return list(self.conn.execute(query, (correlation_id, correlation_id)))
+        return list(self.conn.execute(query, (correlation_id, correlation_id, correlation_id)))

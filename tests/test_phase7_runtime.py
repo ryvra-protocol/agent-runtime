@@ -246,7 +246,7 @@ def test_runaway_protection_halts_on_repeated_denials() -> None:
         PlanStep(id="f2", description="pay b", kind="financial", action="PAY", params={"assetId": "USD", "amount": 10, "recipient": "bob"}),
     ]
     result = runtime.run(context=_context(), task_text="pay twice")
-    assert result.terminal_reason == "REPEATED_GATEWAY_DENIALS"
+    assert result.terminal_reason == "GATEWAY_DENIED"
 
 
 def test_gateway_response_handling_and_pause_resume() -> None:
@@ -262,6 +262,15 @@ def test_gateway_response_handling_and_pause_resume() -> None:
         session = store.conn.execute("SELECT status, escalation_state FROM agent_sessions WHERE session_id = ?", (f"s-{state.value}",)).fetchone()
         assert session["status"] == "PAUSED"
         assert session["escalation_state"] == state.value
+        escalation = store.conn.execute(
+            "SELECT action_payload, gateway_refs FROM agent_actions WHERE session_id = ? AND action_type = 'escalation'",
+            (f"s-{state.value}",),
+        ).fetchone()
+        assert escalation is not None
+        escalation_payload = json.loads(escalation["action_payload"])
+        escalation_refs = json.loads(escalation["gateway_refs"])
+        assert escalation_payload["approvalPayload"]["correlationId"]
+        assert escalation_refs["gatewayRef"]
         resumed = runtime.resume_session(f"s-{state.value}")
         assert resumed["state"] == "RESUMED"
 
