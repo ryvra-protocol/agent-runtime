@@ -2,7 +2,7 @@
 
 ## Profile
 
-`TreasuryPaymentAgent` and `TreasuryPaymentLimits` are compatibility aliases for the Phase 10 `TreasuryAgentProfile` and `TreasuryAgentControls` bounded production profile types.
+`TreasuryPaymentAgent` directly aliases `TreasuryAgentProfile`, and `TreasuryPaymentLimits` directly aliases `TreasuryAgentControls`, so legacy imports continue to resolve to the Phase 10 treasury profile types.
 
 ### Allowed actions
 

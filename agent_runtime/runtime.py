@@ -144,9 +144,6 @@ class AgentRuntime:
                 run_trace.append(result)
                 self.memory.add_event(result)
                 if result["type"] == "financial_intent":
-                    amount = result["intent"].get("amount")
-                    if amount:
-                        spent_in_window += float(amount)
                     self.store.save_action(
                         session_id=context.session_id,
                         task_id=context.task_id,
@@ -180,6 +177,10 @@ class AgentRuntime:
                     escalation_state = handled["escalation_state"]
                     final_status = handled["status"]
                     terminal_reason = handled["terminal_reason"]
+                    if handled["count_spend"]:
+                        amount = result["intent"].get("amount")
+                        if amount:
+                            spent_in_window += float(amount)
                     if handled["halt"]:
                         break
                 else:
@@ -409,17 +410,28 @@ class AgentRuntime:
             "safetyFlags": list(safety_flags),
         }
         if state == IntentState.APPROVED.value:
-            return {"halt": False, "status": AgentStatus.ACTIVE.value, "terminal_reason": None, "escalation_state": EscalationState.NONE.value}
+            return {
+                "halt": False,
+                "status": AgentStatus.ACTIVE.value,
+                "terminal_reason": None,
+                "escalation_state": EscalationState.NONE.value,
+                "count_spend": True,
+            }
         if state == IntentState.DENIED.value:
             run_metrics["denials"] += 1
             intent_retries[intent_id] = intent_retries.get(intent_id, 0) + 1
             run_metrics["retries"] = sum(intent_retries.values())
-            terminal_reason = (
-                "REPEATED_GATEWAY_DENIALS"
-                if run_metrics["denials"] >= profile.config.runaway_limits.max_denials
-                else "GATEWAY_DENIED"
-            )
-            return {"halt": True, "status": "HALTED", "terminal_reason": terminal_reason, "escalation_state": EscalationState.HALTED.value}
+            threshold_met = run_metrics["denials"] >= profile.config.runaway_limits.max_denials
+            terminal_reason = None
+            if threshold_met:
+                terminal_reason = "REPEATED_GATEWAY_DENIALS" if profile.config.runaway_limits.max_denials > 1 else "GATEWAY_DENIED"
+            return {
+                "halt": threshold_met,
+                "status": "HALTED" if threshold_met else AgentStatus.ACTIVE.value,
+                "terminal_reason": terminal_reason,
+                "escalation_state": EscalationState.HALTED.value if threshold_met else EscalationState.NONE.value,
+                "count_spend": False,
+            }
         if state in {IntentState.REVIEW.value, IntentState.CHALLENGE.value, IntentState.DELAY.value, IntentState.QUARANTINE.value}:
             escalation_map = {
                 IntentState.REVIEW.value: EscalationState.REVIEW.value,
@@ -453,8 +465,21 @@ class AgentRuntime:
                 "status": "HALTED" if state == IntentState.QUARANTINE.value else "PAUSED",
                 "terminal_reason": "QUARANTINED" if state == IntentState.QUARANTINE.value else None,
                 "escalation_state": escalation_state,
+                "count_spend": False,
             }
         if state == IntentState.KILLSWITCH.value:
             safety_flags.append("KILLSWITCH_TRIGGERED")
-            return {"halt": True, "status": "HALTED", "terminal_reason": "KILLSWITCH_TRIGGERED", "escalation_state": EscalationState.HALTED.value}
-        return {"halt": False, "status": AgentStatus.ACTIVE.value, "terminal_reason": None, "escalation_state": EscalationState.NONE.value}
+            return {
+                "halt": True,
+                "status": "HALTED",
+                "terminal_reason": "KILLSWITCH_TRIGGERED",
+                "escalation_state": EscalationState.HALTED.value,
+                "count_spend": False,
+            }
+        return {
+            "halt": False,
+            "status": AgentStatus.ACTIVE.value,
+            "terminal_reason": None,
+            "escalation_state": EscalationState.NONE.value,
+            "count_spend": False,
+        }

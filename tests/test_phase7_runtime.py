@@ -246,7 +246,7 @@ def test_runaway_protection_halts_on_repeated_denials() -> None:
         PlanStep(id="f2", description="pay b", kind="financial", action="PAY", params={"assetId": "USD", "amount": 10, "recipient": "bob"}),
     ]
     result = runtime.run(context=_context(), task_text="pay twice")
-    assert result.terminal_reason == "GATEWAY_DENIED"
+    assert result.terminal_reason == "REPEATED_GATEWAY_DENIALS"
 
 
 def test_gateway_response_handling_and_pause_resume() -> None:
