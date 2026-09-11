@@ -2,7 +2,7 @@
 
 ## Profile
 
-`TreasuryPaymentAgent` is a bounded production profile for treasury/payment workloads.
+`TreasuryPaymentAgent` is the compatibility alias for the Phase 10 `TreasuryAgentProfile` bounded production profile.
 
 ### Allowed actions
 
@@ -33,6 +33,7 @@ If any cap is exceeded, the runtime still emits canonical `FinancialIntent` but 
 - `PER_TX_LIMIT_EXCEEDED`
 - `WINDOW_LIMIT_EXCEEDED`
 - `COUNTERPARTY_LIMIT_EXCEEDED`
+- `CASH_FLOOR_BREACH`
 
 ### Autonomy bounds
 
