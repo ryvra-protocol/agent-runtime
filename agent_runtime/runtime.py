@@ -438,7 +438,7 @@ class AgentRuntime:
                 profile_type=context.profile_type.value,
                 autonomy_level=context.autonomy_level.value,
                 safety_flags=safety_flags,
-                escalation_state=EscalationState.PAUSED.value if state != IntentState.QUARANTINE.value else EscalationState.QUARANTINE.value,
+                escalation_state=escalation_state,
                 gateway_ref=gateway_ref,
                 gateway_refs=approval_payload,
                 reason_code=approval_payload["reasonCode"],
@@ -449,7 +449,7 @@ class AgentRuntime:
                 "halt": True,
                 "status": "HALTED" if state == IntentState.QUARANTINE.value else "PAUSED",
                 "terminal_reason": "QUARANTINED" if state == IntentState.QUARANTINE.value else None,
-                "escalation_state": EscalationState.QUARANTINE.value if state == IntentState.QUARANTINE.value else EscalationState.PAUSED.value,
+                "escalation_state": escalation_state,
             }
         if state == IntentState.KILLSWITCH.value:
             safety_flags.append("KILLSWITCH_TRIGGERED")
