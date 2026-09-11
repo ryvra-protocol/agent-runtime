@@ -261,7 +261,7 @@ def test_gateway_response_handling_and_pause_resume() -> None:
         assert paused.terminal_reason is None
         session = store.conn.execute("SELECT status, escalation_state FROM agent_sessions WHERE session_id = ?", (f"s-{state.value}",)).fetchone()
         assert session["status"] == "PAUSED"
-        assert session["escalation_state"] == "PAUSED"
+        assert session["escalation_state"] == state.value
         resumed = runtime.resume_session(f"s-{state.value}")
         assert resumed["state"] == "RESUMED"
 
