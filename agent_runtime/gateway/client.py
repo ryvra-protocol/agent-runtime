@@ -34,11 +34,18 @@ class GatewayClient:
     def get_agent_status(self, actor_id: str) -> AgentStatus:
         raise NotImplementedError
 
+    def pause_session(self, session_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def resume_session(self, session_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
 
 class InMemoryGatewayClient(GatewayClient):
     def __init__(self) -> None:
         self._intents: dict[str, GatewayIntentRecord] = {}
         self._status: dict[str, AgentStatus] = {}
+        self._paused_sessions: dict[str, dict[str, Any]] = {}
 
     def set_agent_status(self, actor_id: str, status: AgentStatus) -> None:
         self._status[actor_id] = status
@@ -47,11 +54,12 @@ class InMemoryGatewayClient(GatewayClient):
         return self._status.get(actor_id, AgentStatus.ACTIVE)
 
     def submit_intent(self, intent: FinancialIntent) -> dict[str, Any]:
-        state = IntentState.REVIEW_REQUIRED if intent.reviewRequired else IntentState.SUBMITTED
+        state = IntentState.REVIEW if intent.reviewRequired else IntentState.APPROVED
         response = {
             "intentId": intent.intentId,
             "state": state.value,
             "gatewayRef": f"gw-{intent.intentId}",
+            "reason": intent.reviewReason,
         }
         self._intents[intent.intentId] = GatewayIntentRecord(
             intent=intent,
@@ -78,7 +86,7 @@ class InMemoryGatewayClient(GatewayClient):
         }
 
     def approve_intent(self, intent_id: str) -> dict[str, Any]:
-        self.mark_intent_state(intent_id, IntentState.SUBMITTED, reason="HUMAN_APPROVED")
+        self.mark_intent_state(intent_id, IntentState.APPROVED, reason="HUMAN_APPROVED")
         return self.get_intent(intent_id)
 
     def cancel_intent(self, intent_id: str) -> dict[str, Any]:
@@ -87,6 +95,25 @@ class InMemoryGatewayClient(GatewayClient):
 
     def get_audit_timeline(self, intent_id: str) -> list[dict[str, Any]]:
         return list(self._intents[intent_id].timeline)
+
+    def pause_session(self, session_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        record = {
+            "sessionId": session_id,
+            "state": "PAUSED",
+            "payload": payload,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        self._paused_sessions[session_id] = record
+        return record
+
+    def resume_session(self, session_id: str) -> dict[str, Any]:
+        payload = self._paused_sessions.pop(session_id, None)
+        return {
+            "sessionId": session_id,
+            "state": "RESUMED",
+            "payload": payload,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
     @staticmethod
     def _event(event_type: str, intent_id: str, state: str, reason: str | None = None) -> dict[str, Any]:

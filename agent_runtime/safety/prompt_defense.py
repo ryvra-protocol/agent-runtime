@@ -19,6 +19,12 @@ class PromptDefense:
         "modify capability",
         "increase limits",
         "self-approve",
+        "raise autonomy",
+        "change profile",
+        "alter policy",
+        "override approval",
+        "ignore review",
+        "rewrite safety",
     )
 
     def check(self, text: str) -> PromptSafetyResult:
