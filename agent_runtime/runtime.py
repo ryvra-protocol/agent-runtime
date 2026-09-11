@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -364,11 +365,16 @@ class AgentRuntime:
     def resume_session(self, session_id: str) -> dict[str, Any]:
         result = self.gateway_client.resume_session(session_id)
         if result["state"] == "RESUMED":
+            session = self.store.get_session(session_id)
+            audit_metadata = {}
+            if session is not None and session["audit_metadata"]:
+                audit_metadata = json.loads(session["audit_metadata"])
+            audit_metadata["resumeTimestamp"] = result["timestamp"]
             self.store.update_session_state(
                 session_id=session_id,
                 status=AgentStatus.ACTIVE.value,
                 escalation_state=EscalationState.NONE.value,
-                audit_metadata={"resumeTimestamp": result["timestamp"]},
+                audit_metadata=audit_metadata,
             )
         return result
 
@@ -458,7 +464,7 @@ class AgentRuntime:
                 task_id=context.task_id,
                 step_id=step_id,
                 action_type="escalation",
-                payload={"approvalPayload": approval_payload, "response": response},
+                payload={"approvalPayload": approval_payload, "response": response, "escalationRecord": escalation_record},
                 profile_type=context.profile_type.value,
                 autonomy_level=context.autonomy_level.value,
                 safety_flags=list(safety_flags),

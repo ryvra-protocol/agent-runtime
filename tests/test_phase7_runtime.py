@@ -285,6 +285,7 @@ def test_gateway_response_handling_and_pause_resume() -> None:
         assert escalation_refs["gatewayRef"]
         resumed = runtime.resume_session(f"s-{state.value}")
         assert resumed["state"] == "RESUMED"
+        assert resumed["payload"]["correlationId"] == escalation_payload["approvalPayload"]["correlationId"]
         resumed_session = store.conn.execute("SELECT status, escalation_state FROM agent_sessions WHERE session_id = ?", (f"s-{state.value}",)).fetchone()
         assert resumed_session["status"] == AgentStatus.ACTIVE.value
         assert resumed_session["escalation_state"] == "NONE"

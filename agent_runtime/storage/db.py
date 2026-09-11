@@ -262,6 +262,9 @@ class RuntimeStore:
         """
         return list(self.conn.execute(query, (correlation_id, correlation_id, correlation_id)))
 
+    def get_session(self, session_id: str) -> sqlite3.Row | None:
+        return self.conn.execute("SELECT * FROM agent_sessions WHERE session_id = ?", (session_id,)).fetchone()
+
     def update_session_state(
         self,
         *,

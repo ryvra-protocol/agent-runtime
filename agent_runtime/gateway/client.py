@@ -111,8 +111,8 @@ class InMemoryGatewayClient(GatewayClient):
         return record
 
     def resume_session(self, session_id: str) -> dict[str, Any]:
-        payload = self._paused_sessions.pop(session_id, None)
-        if payload is None:
+        pause_record = self._paused_sessions.pop(session_id, None)
+        if pause_record is None:
             return {
                 "sessionId": session_id,
                 "state": "NOT_PAUSED",
@@ -122,7 +122,7 @@ class InMemoryGatewayClient(GatewayClient):
         return {
             "sessionId": session_id,
             "state": "RESUMED",
-            "payload": payload,
+            "payload": pause_record["payload"],
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
