@@ -1,5 +1,7 @@
 # TreasuryPaymentAgent
 
+Legacy compatibility shim documentation for the older treasury profile names. New integrations should prefer `TreasuryAgentProfile` and `TreasuryAgentControls`.
+
 ## Profile
 
 `TreasuryPaymentAgent` is a compatibility wrapper around `TreasuryAgentProfile` that still accepts the legacy `limits=` constructor argument, and `TreasuryPaymentLimits` remains a compatibility type built on `TreasuryAgentControls`.

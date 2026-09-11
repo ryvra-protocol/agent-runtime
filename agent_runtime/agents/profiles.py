@@ -183,7 +183,8 @@ class AgentProfile:
     def _check_forbidden_operation(self, text: str) -> None:
         lowered = text.lower()
         for forbidden in self.config.forbidden_operations:
-            if forbidden in lowered:
+            pattern = r"(^|\W)" + re.escape(forbidden) + r"(\W|$)"
+            if re.search(pattern, lowered):
                 raise AgentPolicyError("FORBIDDEN_OPERATION")
 
     def _evaluate_review_reasons(

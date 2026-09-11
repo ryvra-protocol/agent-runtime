@@ -390,7 +390,7 @@ class AgentRuntime:
         limits = profile.config.runaway_limits
         if action_count >= limits.max_actions_per_run:
             raise PermissionError("RUNAWAY_MAX_ACTIONS_EXCEEDED")
-        if retry_count > limits.max_retries:
+        if retry_count >= limits.max_retries:
             raise PermissionError("RUNAWAY_MAX_RETRIES_EXCEEDED")
         if time.monotonic() - start_time > limits.max_duration_seconds:
             raise PermissionError("RUNAWAY_MAX_DURATION_EXCEEDED")
@@ -477,6 +477,11 @@ class AgentRuntime:
                     "gatewayEscalation": escalation_record,
                 },
                 run_metrics=run_metrics,
+            )
+            self.store.update_session_state(
+                session_id=context.session_id,
+                status="HALTED" if state == IntentState.QUARANTINE.value else "PAUSED",
+                escalation_state=escalation_state,
             )
             return {
                 "halt": True,
