@@ -1,3 +1,3 @@
-from .executor import RuntimeExecutor
+from .executor import DirectExecutionBlockedError, RuntimeExecutor
 
-__all__ = ["RuntimeExecutor"]
+__all__ = ["RuntimeExecutor", "DirectExecutionBlockedError"]
