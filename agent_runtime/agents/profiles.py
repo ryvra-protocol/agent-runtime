@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -300,12 +301,24 @@ class ProcurementAgentProfile(AgentProfile):
     def _evaluate_review_reasons(self, **kwargs: Any) -> list[str]:
         recipient = kwargs["recipient"]
         extra_params = kwargs["extra_params"]
+        purpose = kwargs["purpose"]
         reasons: list[str] = []
         if recipient and self.controls.vendor_allowlist and recipient not in self.controls.vendor_allowlist:
             reasons.append("VENDOR_NOT_ALLOWLISTED")
-        if self.controls.require_invoice_reference and not extra_params.get("invoiceRef"):
+        invoice_ref = extra_params.get("invoiceRef") or self._extract_invoice_ref(str(purpose))
+        if self.controls.require_invoice_reference and not invoice_ref:
             reasons.append("INVOICE_REFERENCE_REQUIRED")
         return reasons
+
+    @staticmethod
+    def _extract_invoice_ref(purpose: str) -> str | None:
+        match = re.search(r"invoice[\s:#-]*([A-Za-z0-9-]+)", purpose, re.IGNORECASE)
+        if not match:
+            return None
+        candidate = match.group(1).strip()
+        if not candidate or not any(char.isdigit() for char in candidate):
+            return None
+        return candidate
 
 
 @dataclass

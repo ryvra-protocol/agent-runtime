@@ -229,6 +229,18 @@ def test_market_and_procurement_controls_require_review() -> None:
     assert "VENDOR_NOT_ALLOWLISTED" in procurement_result["intent"]["reviewReason"]
     assert "INVOICE_REFERENCE_REQUIRED" in procurement_result["intent"]["reviewReason"]
 
+    allowed_vendor = procurement.executor.execute_step(
+        _context(ProfileType.PROCUREMENT),
+        PlanStep(
+            id="p2",
+            description="pay acme invoice INV-123",
+            kind="financial",
+            action="PAY",
+            params={"assetId": "USD", "amount": 50, "recipient": "acme", "purpose": "pay acme invoice INV-123"},
+        ),
+    )
+    assert allowed_vendor["submitResponse"]["state"] == IntentState.APPROVED.value
+
 
 def test_runaway_protection_halts_on_max_actions() -> None:
     store = RuntimeStore()
@@ -273,6 +285,9 @@ def test_gateway_response_handling_and_pause_resume() -> None:
         assert escalation_refs["gatewayRef"]
         resumed = runtime.resume_session(f"s-{state.value}")
         assert resumed["state"] == "RESUMED"
+        resumed_session = store.conn.execute("SELECT status, escalation_state FROM agent_sessions WHERE session_id = ?", (f"s-{state.value}",)).fetchone()
+        assert resumed_session["status"] == AgentStatus.ACTIVE.value
+        assert resumed_session["escalation_state"] == "NONE"
 
 
 def test_quarantine_and_suspended_halt_immediately() -> None:

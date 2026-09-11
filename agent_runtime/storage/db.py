@@ -77,7 +77,42 @@ class RuntimeStore:
             );
             """
         )
+        self._ensure_columns(
+            "agent_sessions",
+            {
+                "profile_type": "TEXT",
+                "autonomy_level": "TEXT",
+                "safety_flags": "TEXT",
+                "escalation_state": "TEXT",
+                "run_metrics": "TEXT",
+            },
+        )
+        self._ensure_columns(
+            "agent_tasks",
+            {
+                "objective_hash": "TEXT",
+                "profile_type": "TEXT",
+            },
+        )
+        self._ensure_columns(
+            "agent_actions",
+            {
+                "profile_type": "TEXT",
+                "autonomy_level": "TEXT",
+                "safety_flags": "TEXT",
+                "escalation_state": "TEXT",
+                "gateway_refs": "TEXT",
+                "downstream_refs": "TEXT",
+                "run_metrics": "TEXT",
+            },
+        )
         self.conn.commit()
+
+    def _ensure_columns(self, table: str, columns: dict[str, str]) -> None:
+        existing = {row["name"] for row in self.conn.execute(f"PRAGMA table_info({table})")}
+        for name, definition in columns.items():
+            if name not in existing:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
 
     def upsert_session(
         self,
@@ -226,3 +261,23 @@ class RuntimeStore:
             ORDER BY action_id ASC
         """
         return list(self.conn.execute(query, (correlation_id, correlation_id, correlation_id)))
+
+    def update_session_state(
+        self,
+        *,
+        session_id: str,
+        status: str,
+        escalation_state: str | None = None,
+        audit_metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.conn.execute(
+            """
+            UPDATE agent_sessions
+            SET status = ?,
+                escalation_state = COALESCE(?, escalation_state),
+                audit_metadata = COALESCE(?, audit_metadata)
+            WHERE session_id = ?
+            """,
+            (status, escalation_state, json.dumps(audit_metadata) if audit_metadata is not None else None, session_id),
+        )
+        self.conn.commit()

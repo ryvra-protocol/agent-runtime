@@ -362,7 +362,15 @@ class AgentRuntime:
         return self.gateway_client.pause_session(session_id, approval_payload)
 
     def resume_session(self, session_id: str) -> dict[str, Any]:
-        return self.gateway_client.resume_session(session_id)
+        result = self.gateway_client.resume_session(session_id)
+        if result["state"] == "RESUMED":
+            self.store.update_session_state(
+                session_id=session_id,
+                status=AgentStatus.ACTIVE.value,
+                escalation_state=EscalationState.NONE.value,
+                audit_metadata={"resumeTimestamp": result["timestamp"]},
+            )
+        return result
 
     def _enforce_runaway_limits(
         self,
@@ -440,6 +448,7 @@ class AgentRuntime:
                 IntentState.QUARANTINE.value: EscalationState.QUARANTINE.value,
             }
             escalation_state = escalation_map[state]
+            escalation_record = self.gateway_client.record_escalation(context.session_id, approval_payload)
             if state == IntentState.QUARANTINE.value:
                 safety_flags.append("QUARANTINE_ESCALATION")
             else:
@@ -457,7 +466,10 @@ class AgentRuntime:
                 gateway_ref=gateway_ref,
                 gateway_refs=approval_payload,
                 reason_code=approval_payload["reasonCode"],
-                downstream_refs={"auditTimeline": self.gateway_client.get_audit_timeline(intent_id)},
+                downstream_refs={
+                    "auditTimeline": self.gateway_client.get_audit_timeline(intent_id),
+                    "gatewayEscalation": escalation_record,
+                },
                 run_metrics=run_metrics,
             )
             return {

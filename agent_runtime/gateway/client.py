@@ -40,12 +40,16 @@ class GatewayClient:
     def resume_session(self, session_id: str) -> dict[str, Any]:
         raise NotImplementedError
 
+    def record_escalation(self, session_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
 
 class InMemoryGatewayClient(GatewayClient):
     def __init__(self) -> None:
         self._intents: dict[str, GatewayIntentRecord] = {}
         self._status: dict[str, AgentStatus] = {}
         self._paused_sessions: dict[str, dict[str, Any]] = {}
+        self._escalations: dict[str, list[dict[str, Any]]] = {}
 
     def set_agent_status(self, actor_id: str, status: AgentStatus) -> None:
         self._status[actor_id] = status
@@ -121,6 +125,16 @@ class InMemoryGatewayClient(GatewayClient):
             "payload": payload,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
+    def record_escalation(self, session_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        event = {
+            "sessionId": session_id,
+            "state": "ESCALATED",
+            "payload": payload,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        self._escalations.setdefault(session_id, []).append(event)
+        return event
 
     @staticmethod
     def _event(event_type: str, intent_id: str, state: str, reason: str | None = None) -> dict[str, Any]:
